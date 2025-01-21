@@ -1,20 +1,18 @@
-const express = require("express");
-const app = express();
+const http = require("http");
 
-// Puerto dinámico (Railway usa process.env.PORT)
+// Define el puerto usando process.env.PORT o un valor por defecto
 const PORT = process.env.PORT || 8080;
 
-// Ruta raíz
-app.get("/", (req, res) => {
-  res.send("<h1>¡Servidor funcionando correctamente!</h1>");
+// Crea un servidor básico
+const server = http.createServer((req, res) => {
+  // Configura la cabecera de la respuesta
+  res.writeHead(200, { "Content-Type": "text/plain" });
+
+  // Respuesta básica con información del puerto
+  res.end(`Servidor funcionando en el puerto: ${PORT}`);
 });
 
-// Ruta adicional
-app.get("/test", (req, res) => {
-  res.json({ message: "Ruta de prueba funcionando correctamente." });
-});
-
-// Iniciar el servidor
-app.listen(PORT, () => {
+// Inicia el servidor
+server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
