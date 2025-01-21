@@ -1,18 +1,20 @@
-const http = require("http");
+const express = require("express");
+const app = express();
 
 // Usa el puerto asignado por Railway o 3000 como fallback
 const PORT = process.env.PORT || 3000;
 
-// Crea un servidor básico
-const server = http.createServer((req, res) => {
-  // Configura la cabecera de la respuesta
-  res.writeHead(200, { "Content-Type": "text/plain" });
+// Ruta principal
+app.get("/", (req, res) => {
+  res.send("¡Servidor Express funcionando correctamente!");
+});
 
-  // Respuesta básica para cualquier ruta
-  res.end(`¡Servidor funcionando correctamente en el puerto ${PORT}!`);
+// Ruta adicional de prueba
+app.get("/test", (req, res) => {
+  res.json({ message: "Ruta de prueba funcionando correctamente" });
 });
 
 // Inicia el servidor y escucha en el puerto configurado
-server.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Servidor Express corriendo en el puerto ${PORT}`);
 });
