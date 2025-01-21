@@ -1,14 +1,18 @@
-const express = require("express");
-const app = express();
+const http = require("http");
 
-const PORT = process.env.PORT;
+// Usa el puerto asignado por Railway o 3000 como fallback
+const PORT = process.env.PORT || 3000;
 
-// Ruta básica
-app.get("/", (req, res) => {
-  res.send(`Servidor funcionando en el puerto: ${PORT}`);
+// Crea un servidor básico
+const server = http.createServer((req, res) => {
+  // Configura la cabecera de la respuesta
+  res.writeHead(200, { "Content-Type": "text/plain" });
+
+  // Respuesta básica para cualquier ruta
+  res.end(`¡Servidor funcionando correctamente en el puerto ${PORT}!`);
 });
 
-// Aquí sí puedes usar app.listen
-app.listen(PORT, () => {
+// Inicia el servidor y escucha en el puerto configurado
+server.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
