@@ -4,17 +4,12 @@ const app = express();
 // Usa el puerto asignado por Railway o 3000 como fallback
 const PORT = process.env.PORT || 3000;
 
-// Ruta principal
+// Ruta principal que muestra "Hola Mundo"
 app.get("/", (req, res) => {
-  res.send("¡Servidor Express funcionando correctamente!");
+  res.send("Hola Mundo");
 });
 
-// Ruta adicional de prueba
-app.get("/test", (req, res) => {
-  res.json({ message: "Ruta de prueba funcionando correctamente" });
-});
-
-// Inicia el servidor y escucha en el puerto configurado
+// Inicia el servidor
 app.listen(PORT, () => {
-  console.log(`Servidor Express corriendo en el puerto ${PORT}`);
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
