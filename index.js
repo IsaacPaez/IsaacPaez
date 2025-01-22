@@ -1,12 +1,12 @@
 const http = require("http");
 
-// Usa el puerto proporcionado por Railway o un valor por defecto (3000)
+// Usa el puerto asignado por Railway o un valor predeterminado (3000)
 const PORT = process.env.PORT || 3000;
 
-// Crea un servidor básico que responde "Hola Mundo"
+// Crea un servidor básico
 const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Hola Mundo");
+  res.end("¡Hola desde Railway!");
 });
 
 // Inicia el servidor y escucha en el puerto configurado
