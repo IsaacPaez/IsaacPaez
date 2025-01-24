@@ -1,45 +1,100 @@
 const express = require("express");
-const { Client } = require("whatsapp-web.js");
+const { Client, LocalAuth } = require("whatsapp-web.js");
 const QRCode = require("qrcode");
 const fetch = require("node-fetch"); // Para llamar a la API de OpenAI
 require("dotenv").config(); // Para usar variables de entorno como la clave de OpenAI
 
-// 1) Configuración de Express
+// Configuración de Express
 const app = express();
-
-// 2) Puerto para Railway (o 3000 local)
 const PORT = process.env.PORT || 3000;
 
-// 3) Configuración básica de Puppeteer para Linux
-const client = new Client({
-  puppeteer: {
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  },
+// Variables globales
+let client = null; // Cliente de WhatsApp
+let qrString = null; // Almacena el QR actual
+
+// Función para inicializar el cliente
+function initializeClient() {
+  client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    },
+  });
+
+  // Evento para recibir el QR
+  client.on("qr", async (qr) => {
+    console.log("QR generado:", qr);
+    qrString = qr; // Guardamos el QR para mostrarlo en la ruta
+  });
+
+  // Evento cuando el cliente está listo
+  client.on("ready", () => {
+    console.log("Cliente de WhatsApp listo.");
+    qrString = null; // El QR ya no es necesario cuando el cliente está listo
+  });
+
+  // Evento para manejar desconexiones
+  client.on("disconnected", (reason) => {
+    console.log("Cliente desconectado:", reason);
+    qrString = null;
+    client.destroy();
+    initializeClient(); // Reinicia el cliente automáticamente
+  });
+
+  // Escuchar mensajes entrantes
+  client.on("message", async (message) => {
+    console.log(`Mensaje de ${message.from}: ${message.body}`);
+
+    // Generar respuesta con OpenAI
+    const reply = await getCompletion(message.body);
+
+    // Enviar respuesta al mismo chat
+    try {
+      await client.sendMessage(message.from, reply);
+      console.log("Respuesta enviada:", reply);
+    } catch (err) {
+      console.error("Error enviando mensaje:", err);
+    }
+  });
+
+  // Inicializar cliente
+  client.initialize();
+}
+
+// Inicializar el cliente al arrancar el servidor
+initializeClient();
+
+// Ruta para mostrar el QR
+app.get("/qr", async (req, res) => {
+  if (!qrString) {
+    return res.send(`
+      <h1>QR no disponible</h1>
+      <p>El cliente está conectado o generando un nuevo QR. Recarga esta página en unos segundos.</p>
+    `);
+  }
+
+  // Convertir el QR a imagen
+  const qrImage = await QRCode.toDataURL(qrString);
+  res.send(`
+    <div style="text-align: center;">
+      <h1>Escanea este código QR</h1>
+      <img src="${qrImage}" />
+    </div>
+  `);
 });
 
-// 4) Variable para almacenar el QR
-let qrString = null;
-
-// 5) Eventos de WhatsApp-Web.js
-client.on("qr", (qr) => {
-  console.log("QR RECEIVED", qr);
-  qrString = qr;
+// Ruta principal
+app.get("/", (req, res) => {
+  res.send(`
+    <div style="text-align: center;">
+      <h1>WhatsApp Web Bot</h1>
+      <p>Ve a <a href="/qr">/qr</a> para obtener el código QR y conectar tu cuenta de WhatsApp.</p>
+    </div>
+  `);
 });
 
-client.on("ready", () => {
-  console.log("WhatsApp client is ready!");
-});
-
-client.on("auth_failure", (msg) => {
-  console.error("Authentication failure:", msg);
-});
-
-client.on("disconnected", (reason) => {
-  console.log("Client was logged out:", reason);
-});
-
-// 6) Función para llamar a OpenAI
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // Debes configurar esta clave en tu archivo .env
+// Función para llamar a OpenAI
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // Configura tu clave de OpenAI en el archivo .env
 
 async function getCompletion(userMessage) {
   if (!OPENAI_API_KEY) {
@@ -55,12 +110,12 @@ async function getCompletion(userMessage) {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-3.5-turbo", // Puedes cambiar a otro modelo si es necesario
+        model: "gpt-3.5-turbo", // Modelo a usar
         messages: [
           { role: "system", content: "Eres un asistente útil." },
           { role: "user", content: userMessage },
         ],
-        max_tokens: 50, // Configura el límite de tokens según tu necesidad
+        max_tokens: 50, // Límite de tokens en la respuesta
       }),
     });
 
@@ -75,48 +130,7 @@ async function getCompletion(userMessage) {
   }
 }
 
-// 7) Escuchar mensajes entrantes y responder con la IA
-client.on("message", async (message) => {
-  console.log(`Mensaje de ${message.from}: ${message.body}`);
-
-  // Llama a la IA para obtener una respuesta
-  const reply = await getCompletion(message.body);
-
-  // Envía la respuesta al mismo chat
-  try {
-    await client.sendMessage(message.from, reply);
-    console.log("Respuesta enviada:", reply);
-  } catch (err) {
-    console.error("Error al enviar la respuesta:", err);
-  }
-});
-
-// 8) Iniciar el cliente
-client.initialize();
-
-// 9) Ruta principal
-app.get("/", (req, res) => {
-  res.send(
-    `<h1>Servidor funcionando. Ve a <a href="/qr">/qr</a> para escanear el código.</h1>`
-  );
-});
-
-// 10) Ruta para ver el QR
-app.get("/qr", async (req, res) => {
-  if (!qrString) {
-    return res.send("<h1>QR no disponible (posiblemente ya escaneado).</h1>");
-  }
-  // Convertir el texto del QR en una imagen base64
-  const qrImage = await QRCode.toDataURL(qrString);
-  res.send(`
-    <div style="text-align: center;">
-      <h1>Escanea este código QR en WhatsApp</h1>
-      <img src="${qrImage}" />
-    </div>
-  `);
-});
-
-// 11) Iniciar el servidor en 0.0.0.0 para Railway
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on port " + PORT);
+// Iniciar servidor
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });

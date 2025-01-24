@@ -1,6 +1,7 @@
 # Ignorar node_modules
 node_modules/
-
+.wwebjs_auth/
+.wwebjs_cache/
 # Ignorar logs
 npm-debug.log
 yarn-error.log
