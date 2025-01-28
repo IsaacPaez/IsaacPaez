@@ -33,7 +33,7 @@ async function getCompletion(userMessage) {
           { role: "system", content: "Eres un asistente útil." },
           { role: "user", content: userMessage },
         ],
-        max_tokens: 50,
+        max_tokens: 100,
       }),
     });
 
