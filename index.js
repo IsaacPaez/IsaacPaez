@@ -150,7 +150,7 @@ app.get("/qr/:id", async (req, res) => {
 
   if (!qrStrings[clientId]) {
     return res.send(`
-      <h1>No hay QR disponible para ${clientId}</h1>
+      <h1>No hay QR dispo para ${clientId}</h1>
       <p>Espera unos segundos o verifica si la sesión ya está conectada.</p>
     `);
   }
