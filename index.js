@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 // Objetos para manejar múltiples clientes
 const clients = {};
 const qrStrings = {}; // Almacena los QR generados para cada cliente
+const sessionStatus = {}; // Almacena el estado de cada sesión
 
 // Función para interactuar con OpenAI
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -33,7 +34,7 @@ async function getCompletion(userMessage) {
           { role: "system", content: "Eres un asistente útil." },
           { role: "user", content: userMessage },
         ],
-        max_tokens: 100,
+        max_tokens: 50,
       }),
     });
 
@@ -50,6 +51,11 @@ async function getCompletion(userMessage) {
 
 // Función para inicializar un cliente con ID único
 function initializeClient(clientId) {
+  if (clients[clientId]) {
+    console.log(`Cliente ${clientId} ya está inicializado.`);
+    return;
+  }
+
   const client = new Client({
     authStrategy: new LocalAuth({ clientId }),
     puppeteer: {
@@ -57,42 +63,30 @@ function initializeClient(clientId) {
     },
   });
 
+  clients[clientId] = client;
+  qrStrings[clientId] = null;
+  sessionStatus[clientId] = "Desconectado";
+
   client.on("qr", async (qr) => {
-    console.log(`QR generado para ${clientId}:`, qr);
-    qrStrings[clientId] = qr; // Guardamos el QR para mostrarlo en la ruta
+    console.log(`QR generado para ${clientId}`);
+    qrStrings[clientId] = qr;
+    sessionStatus[clientId] = "Escaneando QR";
   });
 
   client.on("ready", () => {
     console.log(`Cliente ${clientId} está listo.`);
-    qrStrings[clientId] = null; // Limpiamos el QR porque la sesión ya está activa
+    qrStrings[clientId] = null;
+    sessionStatus[clientId] = "Conectado";
   });
 
-  client.on("disconnected", async (reason) => {
+  client.on("disconnected", (reason) => {
     console.log(`Cliente ${clientId} desconectado:`, reason);
-
-    try {
-      await client.destroy();
-    } catch (err) {
-      console.error(`Error destruyendo el cliente ${clientId}:`, err);
-    }
-
-    setTimeout(() => {
-      console.log(`Reiniciando cliente ${clientId}...`);
-      initializeClient(clientId);
-    }, 2000); // Espera 2 segundos antes de reiniciar
-  });
-
-  client.on("error", (err) => {
-    console.error(`Error global en cliente ${clientId}:`, err);
-
-    if (err.message.includes("Execution context was destroyed")) {
-      console.log(`Reiniciando cliente ${clientId} debido a un error.`);
-      setTimeout(() => initializeClient(clientId), 2000);
-    }
+    sessionStatus[clientId] = "Desconectado";
+    setTimeout(() => initializeClient(clientId), 5000); // Reintenta tras 5 segundos
   });
 
   client.on("message", async (message) => {
-    console.log(`Mensaje de ${message.from} en ${clientId}: ${message.body}`);
+    console.log(`Mensaje recibido en ${clientId} de ${message.from}: ${message.body}`);
     try {
       const reply = await getCompletion(message.body);
       await client.sendMessage(message.from, reply);
@@ -102,29 +96,28 @@ function initializeClient(clientId) {
     }
   });
 
+  client.on("error", (err) => {
+    console.error(`Error en cliente ${clientId}:`, err);
+  });
+
   client.initialize();
-  clients[clientId] = client; // Guardamos el cliente en el objeto
 }
 
 // Rutas
-
-// Página principal
 app.get("/", (req, res) => {
   const clientsList = Object.keys(clients)
     .map(
       (clientId) =>
-        `<li>${clientId} - <a href="/qr/${clientId}">Obtener QR</a> | <a href="/logout/${clientId}">Cerrar Sesión</a></li>`
+        `<li>${clientId} - Estado: ${sessionStatus[clientId]} - <a href="/qr/${clientId}">Ver QR</a> | <a href="/logout/${clientId}">Cerrar Sesión</a></li>`
     )
     .join("");
 
   res.send(`
     <div style="text-align: center;">
-      <h1>Gestión de WhatsApp Web Bot</h1>
-      <form action="/start/user1" method="get" style="margin-bottom: 10px;">
-        <button type="submit">Iniciar Sesión (User1)</button>
-      </form>
-      <form action="/start/user2" method="get" style="margin-bottom: 10px;">
-        <button type="submit">Iniciar Sesión (User2)</button>
+      <h1>Gestión de Clientes WhatsApp</h1>
+      <form action="/start" method="post">
+        <input type="text" name="clientId" placeholder="ID del cliente" required />
+        <button type="submit">Iniciar Cliente</button>
       </form>
       <h2>Clientes Activos</h2>
       <ul>${clientsList || "<p>No hay clientes activos</p>"}</ul>
@@ -132,9 +125,14 @@ app.get("/", (req, res) => {
   `);
 });
 
-// Inicia un cliente con un ID
-app.get("/start/:id", (req, res) => {
-  const clientId = req.params.id;
+app.use(express.urlencoded({ extended: true }));
+
+app.post("/start", (req, res) => {
+  const clientId = req.body.clientId;
+
+  if (!clientId) {
+    return res.status(400).send("Debe proporcionar un ID de cliente.");
+  }
 
   if (clients[clientId]) {
     return res.send(`<h1>El cliente ${clientId} ya está activo.</h1>`);
@@ -143,31 +141,29 @@ app.get("/start/:id", (req, res) => {
   initializeClient(clientId);
   res.send(`
     <h1>Cliente ${clientId} iniciado</h1>
-    <p>Ve a <a href="/qr/${clientId}">/qr/${clientId}</a> para escanear el código QR.</p>
+    <p>Visita <a href="/qr/${clientId}">/qr/${clientId}</a> para escanear el código QR.</p>
   `);
 });
 
-// Ruta para mostrar el QR de un cliente
 app.get("/qr/:id", async (req, res) => {
   const clientId = req.params.id;
 
   if (!qrStrings[clientId]) {
     return res.send(`
-      <h1>QR no disponible para ${clientId}</h1>
-      <p>El cliente está conectado o generando un nuevo QR. Recarga esta página en unos segundos.</p>
+      <h1>No hay QR dispo para ${clientId}</h1>
+      <p>Espera unos segundos o verifica si la sesión ya está conectada.</p>
     `);
   }
 
   const qrImage = await QRCode.toDataURL(qrStrings[clientId]);
   res.send(`
     <div style="text-align: center;">
-      <h1>Escanea este código QR para ${clientId}</h1>
-      <img src="${qrImage}" />
+      <h1>Código QR para ${clientId}</h1>
+      <img src="${qrImage}" alt="Código QR para ${clientId}" />
     </div>
   `);
 });
 
-// Ruta para cerrar sesión de un cliente
 app.get("/logout/:id", async (req, res) => {
   const clientId = req.params.id;
 
@@ -178,7 +174,8 @@ app.get("/logout/:id", async (req, res) => {
   try {
     await clients[clientId].logout();
     delete clients[clientId];
-    qrStrings[clientId] = null;
+    delete qrStrings[clientId];
+    sessionStatus[clientId] = "Desconectado";
     res.send(`<h1>Sesión cerrada correctamente para ${clientId}.</h1>`);
   } catch (err) {
     console.error(`Error cerrando sesión para ${clientId}:`, err);
