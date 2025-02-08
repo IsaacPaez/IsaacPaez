@@ -1,24 +1,55 @@
 const express = require("express");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const QRCode = require("qrcode");
-const axios = require("axios");
+const fetch = require("node-fetch");
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Objeto para manejar clientes de WhatsApp
+// Objetos para manejar múltiples clientes
 const clients = {};
-const qrStrings = {};
-const sessionStatus = {};
+const qrStrings = {}; // Almacena los QR generados para cada cliente
+const sessionStatus = {}; // Almacena el estado de cada sesión
 
-// URL del backend en Laravel (cPanel)
-const LARAVEL_API_URL = "https://tudominio.com/api/v1/whatsapp-message";
+// Función para interactuar con OpenAI
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Función para inicializar un cliente de WhatsApp
+async function getCompletion(userMessage) {
+  if (!OPENAI_API_KEY) {
+    console.error("Falta la clave de OpenAI en las variables de entorno.");
+    return "Lo siento, no puedo procesar tu mensaje porque no está configurada la API de OpenAI.";
+  }
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: "Eres un asistente útil." },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: 50,
+      }),
+    });
+
+    const data = await response.json();
+    if (!data || !data.choices || data.choices.length === 0) {
+      return "Lo siento, no puedo responder a tu mensaje en este momento.";
+    }
+    return data.choices[0].message.content.trim();
+  } catch (error) {
+    console.error("Error al procesar el mensaje con OpenAI:", error);
+    return "Hubo un error al procesar tu mensaje. Intenta más tarde.";
+  }
+}
+
+// Función para inicializar un cliente con ID único
 function initializeClient(clientId) {
   if (clients[clientId]) {
     console.log(`Cliente ${clientId} ya está inicializado.`);
@@ -28,8 +59,6 @@ function initializeClient(clientId) {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId }),
     puppeteer: {
-      headless: "new",
-      executablePath: "/usr/bin/google-chrome-stable", // Ruta del navegador en Railway
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     },
   });
@@ -53,27 +82,17 @@ function initializeClient(clientId) {
   client.on("disconnected", (reason) => {
     console.log(`Cliente ${clientId} desconectado:`, reason);
     sessionStatus[clientId] = "Desconectado";
-    setTimeout(() => initializeClient(clientId), 5000);
+    setTimeout(() => initializeClient(clientId), 5000); // Reintenta tras 5 segundos
   });
 
-  // **Nuevo: Enviar mensajes a Laravel**
   client.on("message", async (message) => {
-    console.log(`📩 Mensaje recibido de ${message.from}: ${message.body}`);
-
+    console.log(`Mensaje recibido en ${clientId} de ${message.from}: ${message.body}`);
     try {
-      const response = await axios.post(LARAVEL_API_URL, {
-        message: message.body,
-        user_id: message.from,
-      });
-
-      if (response.data.success) {
-        await client.sendMessage(message.from, response.data.message);
-        console.log(`✅ Respuesta enviada a ${message.from}:`, response.data.message);
-      } else {
-        console.error(`❌ Error en la respuesta de Laravel:`, response.data.error);
-      }
-    } catch (error) {
-      console.error("❌ Error al enviar mensaje a Laravel:", error);
+      const reply = await getCompletion(message.body);
+      await client.sendMessage(message.from, reply);
+      console.log(`Respuesta enviada en ${clientId}:`, reply);
+    } catch (err) {
+      console.error(`Error enviando mensaje en ${clientId}:`, err);
     }
   });
 
@@ -84,7 +103,7 @@ function initializeClient(clientId) {
   client.initialize();
 }
 
-// **Rutas para el servidor Express**
+// Rutas
 app.get("/", (req, res) => {
   const clientsList = Object.keys(clients)
     .map(
@@ -106,7 +125,8 @@ app.get("/", (req, res) => {
   `);
 });
 
-// **Iniciar sesión con un cliente**
+app.use(express.urlencoded({ extended: true }));
+
 app.post("/start", (req, res) => {
   const clientId = req.body.clientId;
 
@@ -125,13 +145,12 @@ app.post("/start", (req, res) => {
   `);
 });
 
-// **Obtener el QR de un cliente**
 app.get("/qr/:id", async (req, res) => {
   const clientId = req.params.id;
 
   if (!qrStrings[clientId]) {
     return res.send(`
-      <h1>No hay QR disponible para ${clientId}</h1>
+      <h1>No hay QR dispo para ${clientId}</h1>
       <p>Espera unos segundos o verifica si la sesión ya está conectada.</p>
     `);
   }
@@ -145,7 +164,6 @@ app.get("/qr/:id", async (req, res) => {
   `);
 });
 
-// **Cerrar sesión de un cliente**
 app.get("/logout/:id", async (req, res) => {
   const clientId = req.params.id;
 
@@ -165,7 +183,7 @@ app.get("/logout/:id", async (req, res) => {
   }
 });
 
-// **Iniciar el servidor**
+// Iniciar el servidor
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
