@@ -12,10 +12,16 @@ const whatsappRoutes = require("./routes/whatsappRoutes");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "http://localhost:3000" } });
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
+};
 
-// Configurar middleware
-app.use(cors());
+app.use(cors(corsOptions));
+
+const io = new Server(server, { cors: corsOptions });
+
 app.use(express.json());
 
 // Configurar rutas
