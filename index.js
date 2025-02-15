@@ -14,11 +14,25 @@ const whatsappRoutes = require("./routes/whatsappRoutes");
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://frontend-clicsociable.vercel.app", // 🚀 Dominio de tu frontend en Vercel
+];
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("🚫 CORS bloqueado para este origen"));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
 };
+
+app.use(cors(corsOptions));
+
 
 app.use(cors(corsOptions));
 
