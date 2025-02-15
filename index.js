@@ -3,7 +3,9 @@ const { Server } = require("socket.io");
 const http = require("http");
 const cors = require("cors");
 const connectDB = require("./config/db"); // Conexión a MongoDB
-require("dotenv").config();
+require("dotenv").config(); 
+console.log("🔍 Variables de entorno cargadas:", process.env);
+
 
 // Importar rutas
 const authRoutes = require("./routes/authRoutes");
