@@ -25,7 +25,7 @@ async function authenticateToken(req, res, next) {
             return res.status(403).json({ message: "Token inválido o usuario no autenticado." });
         }
 
-        req.user = user;
+        req.user = user; // ✅ Agregar el usuario a la request para uso en controladores
         console.log("✅ Token verificado en la base de datos. Usuario autenticado:", user.username);
         next();
     } catch (error) {
@@ -38,4 +38,13 @@ async function authenticateToken(req, res, next) {
         return res.status(403).json({ message: "Token inválido." });
     }
 }
-module.exports = authenticateToken;
+
+// ✅ Middleware para verificar si el usuario es admin
+async function isAdmin(req, res, next) {
+    if (!req.user || req.user.role !== "admin") {
+        return res.status(403).json({ message: "Acceso denegado. No tienes permisos de administrador." });
+    }
+    next();
+}
+
+module.exports = { authenticateToken, isAdmin };

@@ -1,12 +1,7 @@
 const OpenAI = require("openai");
 const User = require("../models/User");
 
-// 🔍 Verifica si la variable está disponible
-console.log("🔍 OPENAI_API_KEY desde Railway:", process.env.OPENAI_API_KEY);
 
-if (!process.env.OPENAI_API_KEY) {
-    throw new Error("❌ OPENAI_API_KEY no está definida en las variables de entorno");
-}
 
 // ✅ Instancia de OpenAI
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
