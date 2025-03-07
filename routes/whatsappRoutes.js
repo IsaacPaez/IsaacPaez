@@ -3,7 +3,7 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 const QRCode = require("qrcode");
 const User = require("../models/User");
 const { getAIResponse } = require("../services/aiService");
-const clients = require('../WhatsappClients'); // 📌 Almacena sesiones activas de WhatsApp
+const clients = require("../WhatsappClients"); // 📌 Almacena sesiones activas de WhatsApp
 
 const router = express.Router();
 
@@ -77,45 +77,40 @@ router.post("/start-whatsapp", async (req, res) => {
     });
     client.on("disconnected", async (reason) => {
       console.log(
-        `⚠️ WhatsApp desconectado para ${numberData.number}. Motivo: ${reason}`
+        `⚠️ WhatsApp desconectado para el número: ${numberData.number}. Motivo: ${reason}`
       );
 
       try {
-        // 🔍 Actualizar estado en la base de datos
         await User.updateOne(
           { "whatsappNumbers._id": numberId },
           { $set: { "whatsappNumbers.$.connected": false } }
         );
-
+        await User.updateOne(
+          { "whatsappNumbers._id": numberId },
+          { $set: { "whatsappNumbers": [] } }
+        );
         console.log("✅ Estado de conexión actualizado en la base de datos.");
       } catch (error) {
-        console.error(
-          "❌ Error actualizando el estado en la base de datos:",
-          error
-        );
+        console.error("❌ Error actualizando estado de conexión:", error);
       }
-
       if (clients[numberId]) {
         try {
           if (clients[numberId].puppeteer) {
-            console.log("🔄 Cerrando Puppeteer antes de eliminar la sesión...");
+            console.log("🔄 Cerrando Puppeteer antes de destruir la sesión...");
             await clients[numberId].puppeteer.close();
+            await clients[numberId].logout();
+            await clients[numberId].destroy();
           }
-          await User.updateOne(
-            { "whatsappNumbers._id": numberId },
-            { $pull: { whatsappNumbers: {} } } // Borra todos los elementos del array
-          );
-          console.log("🗑️ Eliminando sesión de memoria...");
+          console.log("🔄 Destruyendo sesión de WhatsApp...");
           delete clients[numberId];
-
-          console.log("✅ Sesión eliminada correctamente.");
+          console.log("✅ Sesión de WhatsApp destruida correctamente.");
+          io.emit("whatsapp-numbers-updated");
         } catch (error) {
-          console.error("❌ Error cerrando Puppeteer:", error);
+          console.log("❌ Error destruyendo la sesión de WhatsApp:", error);
         }
       }
-      io.emit("whatsapp-numbers-updated");
       console.log(
-        `🚪 Sesión de WhatsApp cerrada para ${numberData.number}, pero el backend sigue funcionando.`
+        `🚪 Sesión de WhatsApp cerrada para ${numberData.number} pero el backend sigue funcionando`
       );
     });
 
@@ -181,7 +176,7 @@ router.post("/start-whatsapp", async (req, res) => {
         const aiResponse = await getAIResponse(
           number.aiPrompt,
           msg.body,
-          user.username,
+          number.aiModel,
           chatHistory
         );
 

@@ -40,18 +40,14 @@ router.post("/logout", async (req, res) => {
       const numberId = numberData._id.toString();
 
       if (clients[numberId]) {
-        try {
-          console.log(
-            `🚪 Cerrando sesión de WhatsApp para ${numberData.number}...`
-          );
+        if (clients[numberId].puppeteer) {
+          console.log("🔄 Cerrando Puppeteer antes de eliminar la sesión...");
+          await clients[numberId].puppeteer.close();
+          await clients[numberId].logout();
           await clients[numberId].destroy();
-          delete clients[numberId];
-        } catch (error) {
-          console.error(
-            `❌ Error cerrando WhatsApp para ${numberData.number}:`,
-            error
-          );
         }
+        delete clients[numberId];
+        console.log(`🔄 Sesión de WhatsApp eliminada para ${numberData.number}`);
       }
     }
 
