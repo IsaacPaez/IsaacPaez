@@ -20,6 +20,7 @@ const server = http.createServer(app);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://frontend-clicsociable.vercel.app", // 🚀 Dominio de tu frontend en Vercel
+  "https://frontend-clicsociable-git-development-david-espejos-projects.vercel.app"
 ];
 
 const corsOptions = {
