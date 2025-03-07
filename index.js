@@ -3,7 +3,7 @@ const { Server } = require("socket.io");
 const http = require("http");
 const cors = require("cors");
 const connectDB = require("./config/db"); // Conexión a MongoDB
-require("dotenv").config(); 
+require("dotenv").config();
 
 console.log("🔍 Variables de entorno cargadas:", process.env);
 
@@ -76,3 +76,11 @@ connectDB()
     console.error("❌ No se pudo conectar a MongoDB:", err);
     process.exit(1); // Detener la aplicación si hay un fallo en la conexión a MongoDB
   });
+
+process.on("uncaughtException", (err) => {
+  console.error("⚠️ Excepción no controlada:", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("⚠️ Rechazo de promesa no capturado en:", promise);
+});
