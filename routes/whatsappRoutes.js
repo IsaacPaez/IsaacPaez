@@ -4,6 +4,7 @@ const QRCode = require("qrcode");
 const User = require("../models/User");
 const { getAIResponse } = require("../services/aiService");
 const clients = require("../WhatsappClients"); // 📌 Almacena sesiones activas de WhatsApp
+const { sendMessage } = require("../controllers/whatsappController");
 
 const router = express.Router();
 
@@ -87,7 +88,7 @@ router.post("/start-whatsapp", async (req, res) => {
         );
         await User.updateOne(
           { "whatsappNumbers._id": numberId },
-          { $set: { "whatsappNumbers": [] } }
+          { $set: { whatsappNumbers: [] } }
         );
         console.log("✅ Estado de conexión actualizado en la base de datos.");
       } catch (error) {
@@ -153,11 +154,6 @@ router.post("/start-whatsapp", async (req, res) => {
           return;
         }
 
-        if (!number.aiEnabled) {
-          console.log("⚠️ La IA está desactivada para este número.");
-          return;
-        }
-
         console.log("✅ La IA está activada. Procesando respuesta...");
 
         const chat = await msg.getChat();
@@ -169,10 +165,16 @@ router.post("/start-whatsapp", async (req, res) => {
             role: m.fromMe ? "user" : "assistant",
             content: m.body,
             timestamp: m.timestamp,
+            to: chat.id,
           }))
           .reverse(); // Invertimos para tener orden cronológico
 
+        io.emit("chat-history", { numberId, chatHistory });
         // Obtener respuesta de la IA incluyendo el historial
+        if (!number.aiEnabled) {
+          console.log("⚠️ La IA está desactivada para este número.");
+          return;
+        }
         const aiResponse = await getAIResponse(
           number.aiPrompt,
           msg.body,
@@ -196,6 +198,37 @@ router.post("/start-whatsapp", async (req, res) => {
   } catch (error) {
     console.error("❌ Error al iniciar WhatsApp:", error);
     res.status(500).json({ message: "Error interno del servidor" });
+  }
+});
+
+router.post("/send-message", async (req, res) => {
+  try {
+    const { content, previous, numberId } = req.body;
+    console.log(req.body);
+
+    if (!previous || !previous.to || !previous.to._serialized) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    const chatId = previous.to._serialized; // Número de WhatsApp en formato correcto
+    const message = content; // Mensaje a enviar
+
+    // Verifica si la sesión de WhatsApp está activa
+    const client = clients[numberId];
+    if (!client) {
+      return res
+        .status(404)
+        .json({ error: "No hay sesión activa para este número" });
+    }
+
+    // Enviar mensaje
+    await client.sendMessage(chatId, message);
+    console.log(`✅ Mensaje enviado a ${chatId}: ${message}`);
+
+    res.json({ success: true, message: "Mensaje enviado" });
+  } catch (error) {
+    console.error("❌ Error enviando mensaje:", error);
+    res.status(500).json({ error: "Error enviando mensaje" });
   }
 });
 
