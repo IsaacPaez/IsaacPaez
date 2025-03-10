@@ -83,5 +83,5 @@ process.on("uncaughtException", (err) => {
 });
 
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("⚠️ Rechazo de promesa no capturado en:", promise);
+  console.error("");
 });
