@@ -149,3 +149,7 @@ exports.startWhatsAppSession = async (req, res) => {
   client.initialize();
   res.json({ success: true, message: "WhatsApp iniciado", number });
 };
+exports.sendMessage = async (req, res) => {
+  console.log(await req.json())
+  res.json({ success: true, message: "Mensaje enviado" });
+}

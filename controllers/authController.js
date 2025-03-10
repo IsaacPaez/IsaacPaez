@@ -16,15 +16,32 @@ const registerUser = async (req, res) => {
     const existingUser = await User.findOne({ username });
 
     if (existingUser) {
-      return res.status(400).json({ message: "El usuario ya existe. Inicia sesión." });
+      return res
+        .status(400)
+        .json({ message: "El usuario ya existe. Inicia sesión." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // 📌 Si no se especifica un rol, se asigna "user" por defecto
-    const user = new User({ username, password: hashedPassword, role: role || "user" });
+    const user = new User({
+      username,
+      password: hashedPassword,
+      role: role || "user",
+    });
 
     await user.save();
+
+    const token = jwt.sign(
+      { username: user.username, role: role },
+      JWT_SECRET,
+      { expiresIn: "2h" }
+    );
+
+    console.log("✅ Token generado correctamente:", token);
+
+    // 📌 **IMPORTANTE**: Enviar también `user` con `role` al frontend
+    res.json({ token, user: { username: user.username, role: role } });
 
     res.json({ success: true, message: "Usuario registrado con éxito" });
   } catch (error) {
@@ -79,7 +96,10 @@ const logoutUser = async (req, res) => {
     const { username } = req.user;
 
     // 📌 Aseguramos que el usuario existe antes de eliminar el token
-    const user = await User.findOneAndUpdate({ username }, { $unset: { token: "" } });
+    const user = await User.findOneAndUpdate(
+      { username },
+      { $unset: { token: "" } }
+    );
 
     if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado" });
@@ -95,8 +115,10 @@ const logoutUser = async (req, res) => {
 // **Obtener información del usuario autenticado**
 const getUserInfo = async (req, res) => {
   try {
-    const user = await User.findOne({ username: req.user.username }).select("-password");
-    
+    const user = await User.findOne({ username: req.user.username }).select(
+      "-password"
+    );
+
     if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
@@ -113,7 +135,9 @@ const getUsersList = async (req, res) => {
   try {
     // 📌 Solo admins pueden acceder a esta ruta
     if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Acceso denegado. No eres administrador." });
+      return res
+        .status(403)
+        .json({ message: "Acceso denegado. No eres administrador." });
     }
 
     const users = await User.find().select("-password");
@@ -125,4 +149,10 @@ const getUsersList = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser, logoutUser, getUserInfo, getUsersList };
+module.exports = {
+  registerUser,
+  loginUser,
+  logoutUser,
+  getUserInfo,
+  getUsersList,
+};
