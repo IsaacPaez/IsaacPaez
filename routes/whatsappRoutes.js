@@ -181,9 +181,10 @@ router.post("/start-whatsapp", async (req, res) => {
           number.aiModel,
           chatHistory
         );
-
+        
         if (aiResponse) {
           msg.reply(aiResponse);
+          io.emit("chat-history", { numberId, chatHistory });
           console.log(`✅ Mensaje enviado a ${msg.from}:`, aiResponse);
         } else {
           console.log("❌ No se pudo generar una respuesta.");
