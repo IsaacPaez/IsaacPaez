@@ -134,9 +134,14 @@ router.post("/start-whatsapp", async (req, res) => {
       console.log(`📩 Número llegó como ${phoneNumberRaw}`);
 
       // Validar que contenga solo dígitos
-      if (!/^\d+$/.test(phoneNumberRaw)) {
+      if (!/^\d$/.test(phoneNumberRaw)) {
         console.warn(`El mensaje no proviene de un número válido: ${msg.to}`);
         return; // Se omite el procesamiento para mensajes que no provienen de un número
+      }
+
+      // Si no tiene '+' al inicio, se asume que es un número en formato internacional sin el signo y se agrega
+      if (!phoneNumberRaw.startsWith('+')) {
+        phoneNumberRaw = '+' + phoneNumberRaw;
       }
 
       try {
