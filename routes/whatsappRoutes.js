@@ -131,6 +131,8 @@ router.post("/start-whatsapp", async (req, res) => {
       // Extraer la parte antes de "@" del ID
       const phoneNumberRaw = msg.to.split("@")[0];
 
+      console.log(`📩 Número llegó como ${phoneNumberRaw}`);
+
       // Validar que contenga solo dígitos
       if (!/^\d+$/.test(phoneNumberRaw)) {
         console.warn(`El mensaje no proviene de un número válido: ${msg.to}`);
@@ -142,7 +144,7 @@ router.post("/start-whatsapp", async (req, res) => {
         let numberProto;
         try {
           // Intentamos parsear usando "CO" como región por defecto
-          numberProto = phoneUtil.parse(phoneNumberRaw, "CO");
+          numberProto = phoneUtil.parse(phoneNumberRaw);
         } catch (err) {
           console.error("❌ Error al parsear con región por defecto, se intenta sin región:", err);
           numberProto = phoneUtil.parse(phoneNumberRaw);
