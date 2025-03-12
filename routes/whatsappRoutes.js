@@ -131,11 +131,9 @@ router.post("/start-whatsapp", async (req, res) => {
       console.log(`📩 Partiendo el número ${msg.to.split("@")}`);
 
       // Extraer la parte antes de "@" del ID
-      const phoneNumberRaw = msg.to.split("@")[0];
+      let phoneNumberRaw = msg.to.split("@")[0];
 
       console.log(`📩 Número llegó como ${phoneNumberRaw}`);
-
-      
 
       // Si no tiene '+' al inicio, se asume que es un número en formato internacional sin el signo y se agrega
       if (!phoneNumberRaw.startsWith('+')) {
