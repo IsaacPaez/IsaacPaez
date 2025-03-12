@@ -125,16 +125,27 @@ router.post("/start-whatsapp", async (req, res) => {
 
     // 📌 **Escuchar mensajes entrantes y procesar con IA si está activado**
     client.on("message", async (msg) => {
+
       console.log(`📩 Mensaje recibido de ${msg.from}: ${msg.body}`);
+
+      // Extraer la parte antes de "@" del ID
+      const phoneNumberRaw = msg.to.split("@")[0];
+
+      // Validar que contenga solo dígitos
+      if (!/^\d+$/.test(phoneNumberRaw)) {
+        console.warn(`El mensaje no proviene de un número válido: ${msg.to}`);
+        return; // Se omite el procesamiento para mensajes que no provienen de un número
+      }
 
       try {
         // Si msg.to no tiene un formato internacional, se puede especificar una región por defecto (ej.: "CO")
         let numberProto;
         try {
-          numberProto = phoneUtil.parse(msg.to, "CO");
+          // Intentamos parsear usando "CO" como región por defecto
+          numberProto = phoneUtil.parse(phoneNumberRaw, "CO");
         } catch (err) {
           console.error("❌ Error al parsear con región por defecto, se intenta sin región:", err);
-          numberProto = phoneUtil.parse(msg.to);
+          numberProto = phoneUtil.parse(phoneNumberRaw);
         }
 
         // Extrae el número nacional sin caracteres no numéricos
