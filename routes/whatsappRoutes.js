@@ -7,6 +7,8 @@ const clients = require("../WhatsappClients"); // 📌 Almacena sesiones activas
 const { sendMessage } = require("../controllers/whatsappController");
 
 const router = express.Router();
+const { PhoneNumberUtil } = require("google-libphonenumber");
+const phoneUtil = PhoneNumberUtil.getInstance();
 
 router.post("/start-whatsapp", async (req, res) => {
   const { numberId } = req.body;
@@ -126,8 +128,18 @@ router.post("/start-whatsapp", async (req, res) => {
       console.log(`📩 Mensaje recibido de ${msg.from}: ${msg.body}`);
 
       try {
-        // 📌 Extraemos SOLO los últimos 10 dígitos del número AL QUE SE ESCRIBIÓ
-        const clientNumber = msg.to.replace(/\D/g, "").slice(-10);
+        // Si msg.to no tiene un formato internacional, se puede especificar una región por defecto (ej.: "CO")
+        let numberProto;
+        try {
+          numberProto = phoneUtil.parse(msg.to, "CO");
+        } catch (err) {
+          console.error("❌ Error al parsear con región por defecto, se intenta sin región:", err);
+          numberProto = phoneUtil.parse(msg.to);
+        }
+
+        // Extrae el número nacional sin caracteres no numéricos
+        const clientNumber = phoneUtil.getNationalSignificantNumber(numberProto);
+        console.log(`🔍 Número extraído correctamente: ${clientNumber}`);
 
         console.log(
           `🔍 Buscando configuración para el número de WhatsApp: ${clientNumber}`
