@@ -6,12 +6,20 @@ async function getAIResponse(
   prompt,
   userMessage,
   model = "gpt-3.5-turbo",
-  chatHistory
+  chatHistory = []
 ) {
   try {
     // Preparamos los mensajes incluyendo el historial de chat
-    let messages = [{ role: "system", content: prompt }];
+    let messages = [];
+    if (prompt) {
+      const hasSystemMessage = chatHistory.some(
+        (msg) => msg.role === "system" && msg.content === prompt
+      );
 
+      if (!hasSystemMessage) {
+        messages.push({ role: "system", content: prompt });
+      }
+    }
     // Añadimos el historial de chat si existe
     if (chatHistory && chatHistory.length > 0) {
       // Convertir el historial completo a formato OpenAI
@@ -42,7 +50,7 @@ async function getAIResponse(
       response.choices[0]?.message?.content?.trim() ||
       "No tengo respuesta en este momento.";
 
-    const TokensCount = response.usage?.total_tokens || 0;
+    const TokensCount = response.usage?.completion_tokens || 0;
 
     return [aiResponse, TokensCount];
   } catch (error) {
