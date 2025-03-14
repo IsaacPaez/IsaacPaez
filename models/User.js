@@ -24,6 +24,7 @@ const UserSchema = new mongoose.Schema({
   active: {type: Boolean, default: true},
   whatsappNumbers: [WhatsAppNumberSchema],
   AiTokensUse: { type: Number, default: 0 },
+  AiTokensLimit: { type: Number, default: 50000 },
 });
 
 module.exports = mongoose.model("User", UserSchema);

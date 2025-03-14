@@ -108,3 +108,20 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 }
+exports.updateUserTokens = async (req, res) => {
+  try {
+    const { id, tokens } = req.body;
+    const user
+    = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+    await User
+    .findByIdAndUpdate(id, { $set: { AiTokensLimit: tokens } });
+    return res.status(200).json({ message: "Tokens actualizados" });
+  }
+  catch (error) {
+    console.error("❌ Error en updateUserTokens:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
