@@ -24,13 +24,17 @@ async function getAIResponse(
     const response = await openai.chat.completions.create({
       model: model,
       messages: messages,
-      max_tokens: 120, // Define el límite de tokens por respuesta
+      max_tokens: 120,
     });
 
     const aiResponse =
       response.choices[0]?.message?.content?.trim() ||
       "No tengo respuesta en este momento.";
-    return aiResponse;
+
+    const TokensCount=response.usage?.total_tokens;
+
+    return [aiResponse, TokensCount];
+
   } catch (error) {
     console.error("❌ Error con OpenAI:", error);
     return "Hubo un error al procesar tu mensaje.";

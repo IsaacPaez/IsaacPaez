@@ -5,6 +5,7 @@ const {
   addAgent,
   changeUserPassword,
   deactivateUser,
+  deleteUser,
 } = require("../controllers/adminController");
 const { getAllUsers } = require("../controllers/userController");
 const upload = require("../middlewares/upload"); // ✅ Importa el middleware de subida
@@ -28,5 +29,7 @@ router.post(
 router.post("/reset-password", authenticateToken, isAdmin, changeUserPassword);
 
 router.post("/deactivate-user/:id", authenticateToken, isAdmin, deactivateUser);
+
+router.delete("/delete-user/:id", authenticateToken, isAdmin, deleteUser);
 
 module.exports = router;

@@ -201,12 +201,14 @@ router.post("/start-whatsapp", async (req, res) => {
           console.log("⚠️ La IA está desactivada para este número.");
           return;
         }
-        const aiResponse = await getAIResponse(
+        const [aiResponse, tokens] = await getAIResponse(
           number.aiPrompt,
           msg.body,
           number.aiModel,
           chatHistory
         );
+
+        console.log("Tokens: ", tokens);
         
         if (aiResponse) {
           msg.reply(aiResponse);

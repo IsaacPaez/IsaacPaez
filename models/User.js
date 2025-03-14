@@ -22,7 +22,8 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ["admin", "user"], default: "user" },
   token: { type: String },
   active: {type: Boolean, default: true},
-  whatsappNumbers: [WhatsAppNumberSchema], // 🔥 WhatsAppNumbers ahora contiene los chats
+  whatsappNumbers: [WhatsAppNumberSchema],
+  AiTokensUse: { type: Number, default: 0 },
 });
 
 module.exports = mongoose.model("User", UserSchema);
