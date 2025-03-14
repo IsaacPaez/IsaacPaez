@@ -20,6 +20,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "mysql2": "^3.12.0",
     "node-fetch": "^2.7.0",
+    "nodemailer": "^6.10.0",
     "openai": "^4.85.0",
     "puppeteer": "^24.2.0",
     "qrcode": "^1.5.4",

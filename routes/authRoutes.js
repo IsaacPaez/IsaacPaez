@@ -1,5 +1,11 @@
 const express = require("express");
-const { registerUser, loginUser } = require("../controllers/authController");
+const {
+  registerUser,
+  loginUser,
+  requestResetPassword,
+  verifyOpt,
+  changePassword,
+} = require("../controllers/authController");
 const { authenticateToken } = require("../config/auth");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
@@ -47,7 +53,9 @@ router.post("/logout", async (req, res) => {
           await clients[numberId].destroy();
         }
         delete clients[numberId];
-        console.log(`🔄 Sesión de WhatsApp eliminada para ${numberData.number}`);
+        console.log(
+          `🔄 Sesión de WhatsApp eliminada para ${numberData.number}`
+        );
       }
     }
 
@@ -68,6 +76,10 @@ router.post("/logout", async (req, res) => {
     return res.status(403).json({ message: "Token inválido." });
   }
 });
+
+router.post("/request-reset", requestResetPassword);
+router.post("/verify-code", verifyOpt);
+router.post("/change-password", changePassword);
 
 router.get("/me", authenticateToken, (req, res) => {
   res.json({ username: req.user.username, role: req.user.role });

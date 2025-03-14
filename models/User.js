@@ -18,9 +18,13 @@ const WhatsAppNumberSchema = new mongoose.Schema({
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
   role: { type: String, enum: ["admin", "user"], default: "user" },
   token: { type: String },
-  whatsappNumbers: [WhatsAppNumberSchema], // 🔥 WhatsAppNumbers ahora contiene los chats
+  active: {type: Boolean, default: true},
+  whatsappNumbers: [WhatsAppNumberSchema],
+  AiTokensUse: { type: Number, default: 0 },
+  AiTokensLimit: { type: Number, default: 50000 },
 });
 
 module.exports = mongoose.model("User", UserSchema);

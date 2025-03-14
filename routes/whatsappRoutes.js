@@ -8,6 +8,7 @@ const { sendMessage } = require("../controllers/whatsappController");
 
 const router = express.Router();
 const { PhoneNumberUtil } = require("google-libphonenumber");
+const { MaxAiTokens } = require("../constants");
 const phoneUtil = PhoneNumberUtil.getInstance();
 
 router.post("/start-whatsapp", async (req, res) => {
@@ -183,7 +184,7 @@ router.post("/start-whatsapp", async (req, res) => {
         console.log("✅ La IA está activada. Procesando respuesta...");
 
         const chat = await msg.getChat();
-        const messages = await chat.fetchMessages({ limit: 6 });
+        const messages = await chat.fetchMessages({ limit: 15 });
 
         // Obtener el historial del chat en formato estructurado
         const chatHistory = messages
@@ -201,13 +202,28 @@ router.post("/start-whatsapp", async (req, res) => {
           console.log("⚠️ La IA está desactivada para este número.");
           return;
         }
-        const aiResponse = await getAIResponse(
+
+        console.log("🔍 AiTokensUse: ", user.AiTokensUse);
+        console.log("🔍 AiTokensLimit: ", user.AiTokensLimit);
+
+        if (user.AiTokensUse >= user.AiTokensLimit) {
+          console.log("⚠️ El usuario ha agotado su cuota de tokens.");
+          msg.reply("Lo siento, has agotado tu cuota de tokens.");
+          return;
+        }
+
+        const [aiResponse, tokens] = await getAIResponse(
           number.aiPrompt,
           msg.body,
           number.aiModel,
           chatHistory
         );
-        
+
+        console.log("Tokens: ", tokens);
+        // Incrementa el campo AiTokensUse en la base de datos en lugar de hacer un set manual
+        await User.updateOne({ _id: user._id }, { $inc: { AiTokensUse: tokens } });
+
+
         if (aiResponse) {
           msg.reply(aiResponse);
           io.emit("chat-history", { numberId, chatHistory });
