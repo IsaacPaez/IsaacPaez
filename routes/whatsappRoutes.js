@@ -69,6 +69,14 @@ router.post("/start-whatsapp", async (req, res) => {
       io.to(numberId).emit("whatsapp-ready", { numberId });
     });
 
+    // Agregar temporizador para verificar si el cliente está listo
+    const checkClientReady = setInterval(() => {
+      if (client.info && client.info.wid) {
+        io.to(numberId).emit("whatsapp-ready", { numberId });
+        clearInterval(checkClientReady);
+      }
+    }, 5000); // Verificar cada 5 segundos
+
     client.on("disconnected", async (reason) => {
       console.log(
         `⚠️ WhatsApp desconectado para ${numberData.number}. Motivo: ${reason}`
