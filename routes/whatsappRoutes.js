@@ -3,7 +3,7 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 const QRCode = require("qrcode");
 const User = require("../models/User");
 const { getAIResponse } = require("../services/aiService");
-const clients = require("../WhatsappClients"); // 📌 Sesiones activas de WhatsApp
+const clients = require("../WhatsappClients");
 const { sendMessage } = require("../controllers/whatsappController");
 const { PhoneNumberUtil } = require("google-libphonenumber");
 
@@ -16,7 +16,6 @@ router.post("/start-whatsapp", async (req, res) => {
   console.log("📥 Datos recibidos en /start-whatsapp:", req.body);
 
   if (!numberId) {
-    console.error("❌ Faltan datos: No se recibió `numberId`.");
     return res.status(400).json({ message: "Falta el ID del número" });
   }
 
@@ -24,7 +23,6 @@ router.post("/start-whatsapp", async (req, res) => {
     const user = await User.findOne({ "whatsappNumbers._id": numberId });
 
     if (!user) {
-      console.error(`❌ Usuario no encontrado para numberId: ${numberId}`);
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
@@ -32,22 +30,19 @@ router.post("/start-whatsapp", async (req, res) => {
       (n) => n._id.toString() === numberId
     );
     if (!numberData) {
-      console.error(
-        `❌ Número no encontrado en la base de datos para numberId: ${numberId}`
-      );
       return res.status(404).json({ message: "Número no encontrado" });
     }
 
     console.log(`✅ Iniciando sesión de WhatsApp para ID: ${numberId}`);
 
-    // 📌 Si ya hay una sesión activa, cerrarla antes de iniciar una nueva
+    // Si ya hay una sesión activa, destruirla antes de iniciar una nueva
     if (clients[numberId]) {
       console.log(`🔄 Reiniciando sesión para ${numberData.number}...`);
       await clients[numberId].destroy();
       delete clients[numberId];
     }
 
-    // ✅ Crear nuevo cliente de WhatsApp
+    // Crear nuevo cliente de WhatsApp
     const client = new Client({
       authStrategy: new LocalAuth({ clientId: numberId }),
       puppeteer: {
@@ -59,21 +54,11 @@ router.post("/start-whatsapp", async (req, res) => {
     clients[numberId] = client;
     const io = req.app.get("io");
 
-    // 📌 Unir al usuario a una "room" específica
-    io.on("connection", (socket) => {
-      console.log(`🛜 Usuario con ID ${numberId} conectado al socket`);
-      socket.join(numberId);
-    });
-
     // 📌 Escuchar evento de QR y enviarlo a la room correcta
     client.on("qr", async (qr) => {
-      console.log(`📌 QR recibido para el número: ${numberData.number}`);
-
       try {
         const qrImage = await QRCode.toDataURL(qr);
-        console.log("✅ QR convertido a imagen correctamente.");
         io.to(numberId).emit("qr-code", { numberId, qr: qrImage });
-        console.log("📡 QR enviado al frontend correctamente.");
       } catch (error) {
         console.error("❌ Error procesando el QR:", error);
       }
@@ -81,13 +66,12 @@ router.post("/start-whatsapp", async (req, res) => {
 
     // 📌 WhatsApp listo
     client.on("ready", () => {
-      console.log(`✅ WhatsApp conectado para el número: ${numberData.number}`);
       io.to(numberId).emit("whatsapp-ready", { numberId });
     });
 
     client.on("disconnected", async (reason) => {
       console.log(
-        `⚠️ WhatsApp desconectado para el número: ${numberData.number}. Motivo: ${reason}`
+        `⚠️ WhatsApp desconectado para ${numberData.number}. Motivo: ${reason}`
       );
 
       try {
@@ -95,44 +79,26 @@ router.post("/start-whatsapp", async (req, res) => {
           { "whatsappNumbers._id": numberId },
           { $set: { "whatsappNumbers.$.connected": false } }
         );
-        await User.updateOne(
-          { "whatsappNumbers._id": numberId },
-          { $set: { whatsappNumbers: [] } }
-        );
-        console.log("✅ Estado de conexión actualizado en la base de datos.");
       } catch (error) {
         console.error("❌ Error actualizando estado de conexión:", error);
       }
 
       if (clients[numberId]) {
         try {
-          if (clients[numberId].puppeteer) {
-            console.log("🔄 Cerrando Puppeteer antes de destruir la sesión...");
-            await clients[numberId].puppeteer.close();
-            await clients[numberId].logout();
-            await clients[numberId].destroy();
-          }
-          console.log("🔄 Destruyendo sesión de WhatsApp...");
+          await clients[numberId].destroy();
           delete clients[numberId];
-          console.log("✅ Sesión de WhatsApp destruida correctamente.");
           io.to(numberId).emit("whatsapp-numbers-updated");
         } catch (error) {
           console.log("❌ Error destruyendo la sesión de WhatsApp:", error);
         }
       }
-
-      console.log(
-        `🚪 Sesión de WhatsApp cerrada para ${numberData.number} pero el backend sigue funcionando`
-      );
     });
 
     // 📌 **Escuchar mensajes entrantes y procesar con IA si está activado**
     client.on("message", async (msg) => {
       console.log(`📩 Mensaje recibido de ${msg.from}: ${msg.body}`);
 
-      // 📌 Extraer número y verificar existencia en la base de datos
       let phoneNumberRaw = msg.to.split("@")[0];
-
       if (!phoneNumberRaw.startsWith("+")) {
         phoneNumberRaw = "+" + phoneNumberRaw;
       }
@@ -157,19 +123,12 @@ router.post("/start-whatsapp", async (req, res) => {
         const number = user.whatsappNumbers.find(
           (n) => n.number === clientNumber
         );
-
         if (!number) {
           console.log("❌ No se encontró el número en la base de datos.");
           return;
         }
 
-        if (!number.aiEnabled) {
-          console.log("⚠️ La IA está desactivada para este número.");
-          return;
-        }
-
-        console.log("✅ La IA está activada. Procesando respuesta...");
-
+        // Cargamos el historial de chat siempre, independientemente de si la IA está activada
         const chat = await msg.getChat();
         const messages = await chat.fetchMessages({ limit: 20 });
 
@@ -182,30 +141,34 @@ router.post("/start-whatsapp", async (req, res) => {
 
         io.to(numberId).emit("chat-history", { numberId, chatHistory });
 
-        const [aiResponse, tokens] = await getAIResponse(
-          number.aiPrompt,
-          msg.body,
-          number.aiModel,
-          chatHistory
-        );
+        // Solo procesamos la respuesta de IA si está habilitada
+        if (number.aiEnabled) {
+          console.log("✅ La IA está activada. Procesando respuesta...");
 
-        await User.updateOne(
-          { _id: user._id },
-          { $inc: { AiTokensUse: tokens } }
-        );
+          const [aiResponse, tokens] = await getAIResponse(
+            number.aiPrompt,
+            msg.body,
+            number.aiModel,
+            chatHistory
+          );
 
-        if (aiResponse) {
-          msg.reply(aiResponse);
-          chatHistory.push({
-            role: "assistant",
-            content: aiResponse,
-            timestamp: new Date(),
-            to: chat.id,
-          });
-          io.to(numberId).emit("chat-history", { numberId, chatHistory });
-          console.log(`✅ Mensaje enviado a ${msg.from}:`, aiResponse);
+          await User.updateOne(
+            { _id: user._id },
+            { $inc: { AiTokensUse: tokens } }
+          );
+
+          if (aiResponse) {
+            msg.reply(aiResponse);
+            chatHistory.push({
+              role: "assistant",
+              content: aiResponse,
+              timestamp: new Date(),
+              to: chat.id,
+            });
+            io.to(numberId).emit("chat-history", { numberId, chatHistory });
+          }
         } else {
-          console.log("❌ No se pudo generar una respuesta.");
+          console.log("⚠️ La IA está desactivada para este número.");
         }
       } catch (error) {
         console.error("❌ Error procesando el mensaje:", error);
@@ -220,4 +183,73 @@ router.post("/start-whatsapp", async (req, res) => {
   }
 });
 
-module.exports = router;
+router.post("/send-message", async (req, res) => {
+  try {
+    const { content, previous, numberId } = req.body;
+    if (!previous || !previous.to || !previous.to._serialized) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+    const chatId = previous.to._serialized; // Número de WhatsApp en formato correcto
+    const message = content; // Mensaje a enviar
+
+    // Verifica si la sesión de WhatsApp está activa
+    const client = clients[numberId];
+    if (!client) {
+      return res
+        .status(404)
+        .json({ error: "No hay sesión activa para este número" });
+    }
+    await client.sendMessage(chatId, message);
+    console.log(`✅ Mensaje enviado a ${chatId}: ${message}`);
+    res.json({ success: true, message: "Mensaje enviado correctamente" });
+    // Remove this line: client.initialize();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/stop-whatsapp", async (req, res) => {
+  const { number } = req.body;
+  if (!number) return res.status(400).json({ message: "Falta el número" });
+
+  if (!clients[number])
+    return res.status(404).json({ message: "No hay sesión activa" });
+
+  try {
+    console.log(`🚪 Cerrando sesión de WhatsApp para ${number}...`);
+    if (clients[number] && clients[number].puppeteer) {
+      console.log("🔄 Cerrando Puppeteer antes de destruir la sesión...");
+      await clients[number].puppeteer.close();
+    }
+
+    await clients[number].destroy();
+    delete clients[number];
+    await User.updateOne(
+      { "whatsappNumbers.number": number },
+      { $set: { "whatsappNumbers.$.connected": false } }
+    );
+    console.log(`✅ Sesión cerrada correctamente para ${number}`);
+    res.json({ success: true, message: "Sesión cerrada correctamente" });
+  } catch (error) {
+    console.error("❌ Error cerrando sesión:", error);
+    res.status(500).json({ message: "Error cerrando sesión" });
+  }
+});
+
+// 🔥 **Evento global para manejar conexiones de socket.io**
+const setupSocketEvents = (io) => {
+  io.on("connection", (socket) => {
+    console.log(`🛜 Usuario conectado al socket: ${socket.id}`);
+
+    socket.on("join-room", (roomId) => {
+      console.log(`🔗 Usuario ${socket.id} unido a la sala: ${roomId}`);
+      socket.join(roomId);
+    });
+
+    socket.on("disconnect", () => {
+      console.log(`❌ Usuario desconectado: ${socket.id}`);
+    });
+  });
+};
+
+module.exports = { router, setupSocketEvents };

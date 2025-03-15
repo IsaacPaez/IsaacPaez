@@ -10,7 +10,10 @@ console.log("🔍 Variables de entorno cargadas:", process.env);
 // Importar rutas
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
-const whatsappRoutes = require("./routes/whatsappRoutes");
+const {
+  router: whatsappRouter,
+  setupSocketEvents,
+} = require("./routes/whatsappRoutes");
 const adminRoutes = require("./routes/adminRoutes"); // ✅ Nueva ruta de administrador
 
 const app = express();
@@ -20,7 +23,7 @@ const server = http.createServer(app);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://frontend-clicsociable.vercel.app", // 🚀 Dominio de tu frontend en Vercel
-  "https://frontend-clicsociable-git-development-david-espejos-projects.vercel.app"
+  "https://frontend-clicsociable-git-development-david-espejos-projects.vercel.app",
 ];
 
 const corsOptions = {
@@ -44,7 +47,8 @@ const io = new Server(server, { cors: corsOptions });
 // Configurar rutas
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/whatsapp", whatsappRouter);
+setupSocketEvents(io);
 app.use("/api/admin", adminRoutes); // ✅ Ruta agregada
 
 app.set("io", io);
